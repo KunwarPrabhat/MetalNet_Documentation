@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MetalNet - High-Performance C++ CNN Library</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="script.js" defer></script>
+</head>
+<body>
+
+    <!-- Sidebar TOC -->
+    <aside class="sidebar">
+        <div class="sidebar-logo">MetalNet</div>
+        <nav class="toc-nav">
+            <a href="#about" class="toc-link">1. About MetalNet</a>
+            <a href="#about-arch" class="toc-link toc-sublink">Architecture Overview</a>
+            
+            <a href="#how-to-use" class="toc-link">2. How to Use</a>
+            <a href="#usage-syntax" class="toc-link toc-sublink">Syntax Examples</a>
+            
+            <a href="#compile-run" class="toc-link">3. Compile &amp; Run</a>
+            <a href="#compile-flags" class="toc-link toc-sublink">Compilation Flags</a>
+            
+            <a href="#optimization" class="toc-link">4. Optimization Techniques</a>
+            <a href="#opt-dag" class="toc-link toc-sublink">DAG Implementation</a>
+            <a href="#opt-zero-alloc" class="toc-link toc-sublink">Zero Allocation</a>
+            <a href="#opt-vector" class="toc-link toc-sublink">Vectorization (AVX2)</a>
+            <a href="#opt-multithread" class="toc-link toc-sublink">Multithreading</a>
+            <a href="#opt-gemm" class="toc-link toc-sublink">Efficient Matrix Mult. (GEMM)</a>
+            <a href="#opt-cache" class="toc-link toc-sublink">L1/L2 Cache Optimization</a>
+            
+            <a href="#problems-faced" class="toc-link">5. Problems Faced</a>
+            <a href="#problems-arch" class="toc-link toc-sublink">Architectural Bottlenecks</a>
+            <a href="#problems-memory" class="toc-link toc-sublink">Memory Challenges</a>
+            <a href="#problems-math" class="toc-link toc-sublink">Math &amp; Convergence Issues</a>
+            <a href="#problems-hardware" class="toc-link toc-sublink">System &amp; Hardware Bottlenecks</a>
+            
+            <a href="#benchmarks" class="toc-link">6. Benchmarks</a>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+            
+            <section id="about">
+                <h1>About MetalNet</h1>
+                <p><strong>MetalNet</strong> is a blazing fast, highly efficient, header-only custom Convolutional Neural Network (CNN) library implemented in pure C++20. It aims to provide raw CPU performance capable of matching or exceeding frameworks over optimized CPU regimes, utilizing native vector expressions and robust threading models.</p>
+                
+                <h3 id="about-arch">Architecture Overview</h3>
+                <p>The core philosophy of MetalNet surrounds the concepts of <strong>Zero-Overhead abstractions</strong> and <strong>Native Hardware Mapping</strong>. Everything from the Directed Acyclic Graph (DAG) construction to deep layer fusions is engineered to exploit modern CPU caches effectively.</p>
+                <ul>
+                    <li><strong>No External Dependencies:</strong> It is standalone, leveraging modern C++ standard templates alongside OpenMP and AVX2 intrinsics.</li>
+                    <li><strong>Fluent Graph Builder:</strong> Offers an incredibly fluent sequence builder allowing code like <code>model &lt;&lt; conv2d(1, 64, 3) &lt;&lt; relu();</code></li>
+                    <li><strong>Flexible Extensibility:</strong> A polymorphic <code>Layer</code> interface making it trivially easy to add new operations or mathematical transformations while remaining plugged into the automatic differentiation mechanics.</li>
+                </ul>
+            </section>
+
+            <section id="how-to-use">
+                <h2>How to Use</h2>
+                <p>Using MetalNet mirrors high-level structures from Keras or PyTorch while retaining C++ execution profiles.</p>
+
+                <h3 id="usage-syntax">Building a Model Example</h3>
+                <pre><code>#include &quot;MetalNet/MetalNet.h&quot;
+
+using namespace MetalNet;
+
+Model build_vgg_model() {
+    Model model;
+    // Utilize the fluent API to sequence layers
+    model &lt;&lt; conv2d(1, 64, 3, 1, 1) &lt;&lt; batchnorm2d(64) &lt;&lt; leaky_relu(0.01f)
+          &lt;&lt; conv2d(64, 64, 3, 1, 1) &lt;&lt; batchnorm2d(64) &lt;&lt; leaky_relu(0.01f)
+          &lt;&lt; maxpool2d(2, 2) 
+          &lt;&lt; flatten() &lt;&lt; dense(128 * 7 * 7, 10);
+          
+    // The graph automatically builds internal input/output nodes
+    model.compile({128, 1, 28, 28}); // batch_size, channels, H, W
+    return model;
+}</code></pre>
+
+                <h3>Inference Example</h3>
+                <pre><code>Model inf_model = build_vgg_model();
+inf_model.eval(); // Autonomously drops memory buffers to theoretical minimum
+
+Tensor single_img(1, 1, 28, 28);
+// ... load image data ...
+
+Tensor prediction = inf_model.forward(single_img);
+</code></pre>
+            </section>
+
+            <section id="compile-run">
+                <h2>How to Compile and Run</h2>
+                <p>Because MetalNet leverages highly specific CPU registers and threading paths, the compilation flags must strictly enforce optimization ceilings.</p>
+                
+                <div class="callout">
+                    <p><strong>Step 1:</strong> Clone the repository to your local workspace.</p>
+                </div>
+                <pre><code>git clone https://github.com/KunwarPrabhat/CustomCNN
+cd CustomCNN</code></pre>
+
+                <div class="callout">
+                    <p><strong>Step 2:</strong> Modify <code>main.cpp</code> as desired for your benchmark script or testing environment.</p>
+                </div>
+
+                <h3 id="compile-flags">Compilation Syntax</h3>
+                <p>To compile the project with GCC/G++, invoke the following instruction chain from your terminal. It explicitly maps AVX2 layout pipelines, enables OpenMP scheduling arrays, enforces strict Standard C++20 compliance, and removes unmathematical constraints via fast-math.</p>
+                
+                <pre><code>g++ -std=c++20 -O3 -mavx2 -mfma -fopenmp -march=native -ffast-math -I./include main.cpp -o benchmark.exe -lpsapi</code></pre>
+                
+                <p>Run the executable with <code>./benchmark.exe</code>.</p>
+            </section>
+
+            <section id="optimization">
+                <h2>Optimization Techniques Used</h2>
+                
+                <h3 id="opt-dag">Implementation of Directed Acyclic Graph (DAG)</h3>
+                <p>Gradients propagate through an internal DAG layout mapped dynamically via <code>Layer* output_nodes</code> and <code>input_nodes</code> lists. This design safely models non-sequential topologies like Residual Connections natively without tracking external backprop indices. Compilation steps traverse the DAG hierarchically to pre-allocate exact graph tensors.</p>
+                
+                <h3 id="opt-zero-alloc">Zero Allocation Techniques</h3>
+                <p>The library features a strictly <strong>Zero-Allocation Hot-Path</strong>. The <code>compile()</code> method creates thread-local gradient buffers and dynamically sizes the graph prior to loop execution. Further, a custom C++ `std::allocator` (<code>NoInitAllocator</code>) bypasses the OS 200ms default zero-initialization trap of `std::vector::resize()`, executing tensor allocation under ~1ms. When moving to inference via <code>model.eval()</code>, MetalNet actively triggers memory shrinkage on gradients down to a completely flat footprint.</p>
+
+                <h3 id="opt-vector">Vectorization (AVX2 & FMA)</h3>
+                <p>A major throughput breakthrough came via completely circumventing C++ array iterations. `_mm256_fmadd_ps` and `_mm256_loadu_ps` unaligned intrinsic expressions manually instruct the SIMD processor lines. MetalNet processes 8 floats per cycle natively. Fused Multiply-Add (FMA) mathematically folds arithmetic into singular pipeline pulses without precision degradation.</p>
+
+                <h3 id="opt-multithread">Advanced Multithreading</h3>
+                <p>Loop-collapsed threading arrays orchestrate scaling via `#pragma omp parallel for schedule(static)`. MetalNet actively dodges the "OpenMP Threading Tax" by gating OpenMP directives entirely for latency-sensitive workloads like single-sample inference (batch size 1). When processing batches, OpenMP spreads independent image patches natively over Logical Threads.</p>
+
+                <h3 id="opt-gemm">Efficient Matrix Multiplication (GEMM)</h3>
+                <p>MetalNet pivoted heavily from slow, naïve nested 6D direct convolutions. To map to modern hardware effectively, <strong>Im2Col</strong> (Image-to-Column) algorithms are used alongside highly refined Block GEMM dense structures to transform the Convolution routine into heavily parallelized matrix multiplications. To avoid memory bloats to 10GB+, subsequent paths utilize <strong>Implicit GEMM</strong> paradigms that load patch memory dynamically to subvert memory duplication.</p>
+
+                <h3 id="opt-cache">L1/L2 Cache Optimizations</h3>
+                <p>Register Accumulation ensures sums are computed internally via strict `__m256` accumulators and only stored back to RAM memory exactly once. This removes millions of Read-After-Write (RAW) cache hazards occurring in the L1 pipeline. Standard arrays are loop-tiled in sizes matching L2 cache envelopes (`BLOCK_SIZE = 64`) maximizing data permanence per thread computation.</p>
+            </section>
+
+            <section id="problems-faced">
+                <h2>Problems Faced & Bottlenecks</h2>
+
+                <h3 id="problems-arch">Architectural & Implementation Bottlenecks</h3>
+                <div class="problem-card">
+                    <h4>Naive Convolution Overhead</h4>
+                    <p>The initial implementation used a direct 6-nested-loop convolution, which caused excessive memory traffic and cache thrashing compared to optimized Im2Col or GEMM-based approaches.</p>
+                </div>
+                <div class="problem-card">
+                    <h4>Layer Fragmentation</h4>
+                    <p>Fragmented layer definitions (Conv → BN → ReLU) created multiple intermediate buffers, leading to significant memory bloat and preventing operational fusion. We resolved this via `FusedConvBNReLU` layers.</p>
+                </div>
+                <div class="problem-card">
+                    <h4>OpenMP Threading Tax</h4>
+                    <p>Small batch sizes (e.g., Batch 1) suffered from a "threading tax" where the overhead of managing a thread team exceeded the time saved by parallel math, negatively impacting real-time latency.</p>
+                </div>
+                <div class="problem-card">
+                    <h4>Hyper-Threading AVX2 Penalty</h4>
+                    <p>Using 16 logical threads on an 8-core CPU led to resource contention in the 256-bit AVX registers, causing a performance regression at high thread counts.</p>
+                </div>
+                <div class="problem-card">
+                    <h4>Algorithmic Shift (Spatial to GEMM)</h4>
+                    <p>Initial versions used a slow spatial sliding-window approach that caused heavy "Cache Thrashing". Transitioning to an im2col (Image to Column) strategy transformed convolutions into a standard Matrix Multiplication (GEMM) problem. However, while im2col improved speed, it physically duplicated image pixels, causing RAM usage to explode to 10.1 GB. We overhauled the architecture to use <strong>Implicit GEMM (Direct Convolution)</strong>, which fetches pixels directly from the original tensor on-the-fly, eliminating intermediate buffers and massive memory expansion.</p>
+                </div>
+
+                <h3 id="problems-memory">Memory Management Challenges</h3>
+                <div class="problem-card">
+                    <h4>The "Ghost" Memory Trap</h4>
+                    <p>Every Tensor automatically allocated a <code>.grad</code> array of the same size as its pixel <code>.data</code>, doubling the RAM footprint even during inference-only tasks.</p>
+                </div>
+                <div class="problem-card">
+                    <h4>Static Buffer Persistence</h4>
+                    <p>The engine initially allocated all backward-pass gradient buffers during compilation, even when the model was in <code>eval()</code> mode.</p>
+                </div>
+                <div class="problem-card">
+                    <h4>OS Allocation Latency</h4>
+                    <p>Relying on <code>std::vector::resize(sz, 0.0f)</code> forced the operating system to zero-initialize gigabytes of RAM during model setup, leading to a ~200ms initialization gap.</p>
+                </div>
+                <div class="problem-card">
+                    <h4>Zero-Allocation and the Malloc Lock</h4>
+                    <p>Performance was degraded by dynamic memory allocations inside OpenMP parallel blocks, leading to a "Malloc Lock" where threads stalled waiting for the OS. Implemented a Zero-Allocation hot-path via buffer pre-allocation during the compile phase.</p>
+                </div>
+                <div class="problem-card">
+                    <h4>Dataset Retention</h4>
+                    <p>Loading the full MNIST/CIFAR dataset into memory and keeping it active alongside training subsets caused an unnecessary ~400MB baseline RAM bloat.</p>
+                </div>
+
+                <h3 id="problems-math">Mathematical & Convergence Issues</h3>
+                <div class="problem-card">
+                    <h4>AVX Vectorization Inefficiency & Branchless Pass</h4>
+                    <p>Using standard if statements inside spatial loops (like MaxPool) prevented the compiler from generating efficient SIMD instructions; checking padding boundaries inside hot loops destroyed the CPU's branch predictor, breaking the 1,000 img/sec barrier. This was resolved by switching to <code>std::max</code> and using branchless fast-paths.</p>
+                </div>
+                <div class="problem-card">
+                    <h4>Accumulation Precision & L1 Cache RAW Hazards</h4>
+                    <p>Frequent reading and writing to RAM during convolution accumulation risked tiny rounding truncations and massive L1 RAW hazards. This was mitigated by switching to strict in-register accumulation holding intermediate sums entirely within 256-bit AVX2 registers (<code>__m256</code>) via <code>_mm256_fmadd_ps</code>.</p>
+                </div>
+                <div class="problem-card">
+                    <h4>Dataset Format Ambiguity</h4>
+                    <p>Differences in CSV structures between MNIST (Label in Col 0) and CIFAR (Label in last column) led to out-of-bounds index errors during benchmarking.</p>
+                </div>
+                <div class="problem-card">
+                    <h4>Numerical Stability and Denormal Handling</h4>
+                    <p>Resolved "Exploding Gradients" that collapsed accuracy to 10% by ensuring zero_grad() calls cleared accumulators. "Denormal" Subnormal floating-point numbers caused significant CPU pipeline stalls, requiring the enabling of "Flush-to-Zero" (FTZ) and "Denormals-are-Zero" (DAZ) hardware modes.</p>
+                </div>
+
+                <h3 id="problems-hardware">System & Hardware Bottlenecks</h3>
+                <div class="problem-card">
+                    <h4>AVX2 Stability via Unaligned Intrinsics</h4>
+                    <p>Standard C++ std::vector containers do not guarantee the 32-byte alignment required for the fastest AVX2 instructions. To prevent segmentation faults or slow scalar fallbacks, the engine was pivoted to Unaligned Intrinsics (<code>_mm256_loadu_ps</code>).</p>
+                </div>
+                <div class="problem-card">
+                    <h4>Eliminating OS Benchmarking Illusions</h4>
+                    <p>High RAM readings (e.g., 1.9 GB) were discovered to be a Windows Heap Manager artifact caused by hoarding "freed" memory during repeated model re-builds. By restructuring the benchmark and pinning threads to physical cores, the engine's true, ultra-lean sub-400MB footprint was revealed.</p>
+                </div>
+                <div class="problem-card">
+                    <h4>Compiler Optimization Gaps & Thread Affinity</h4>
+                    <p>Achieving peak performance required specific flags and lack of explicit thread binding caused context switching and L1 cache misses, requiring <code>OMP_PLACES</code> and <code>OMP_PROC_BIND</code> configurations to stabilize throughput.</p>
+                </div>
+            </section>
+
+            <section id="benchmarks">
+                <h2>Benchmarks vs PyTorch</h2>
+                <p>The comprehensive benchmarks below demonstrate MetalNet matching and often drastically exceeding the CPU efficiencies of standard baseline implementations, maintaining strict sub-400MB footprints.</p>
+                
+                <div class="benchmark-grid">
+                    
+                    <!-- Standard Conv Benchmark -->
+                    <div class="benchmark-row">
+                        <div class="benchmark-item">
+                            <div class="benchmark-header">MetalNet (Standard)</div>
+                            <img src="../benchmarks/metalnet.png" alt="MetalNet Benchmark">
+                        </div>
+                        <div class="benchmark-item">
+                            <div class="benchmark-header">PyTorch (Standard)</div>
+                            <img src="../benchmarks/pytorch.png" alt="PyTorch Benchmark">
+                        </div>
+                    </div>
+
+                    <!-- MNIST Benchmark -->
+                    <div class="benchmark-row">
+                        <div class="benchmark-item">
+                            <div class="benchmark-header">MetalNet (MNIST Performance)</div>
+                            <img src="../benchmarks/metalnet_mnist_bm.png" alt="MetalNet MNIST Benchmark">
+                        </div>
+                        <div class="benchmark-item">
+                            <div class="benchmark-header">PyTorch (MNIST Performance)</div>
+                            <img src="../benchmarks/pytorch_mnist_bm.png" alt="PyTorch MNIST Benchmark">
+                        </div>
+                    </div>
+                    
+                    <!-- CIFAR Benchmark -->
+                    <div class="benchmark-row">
+                        <div class="benchmark-item">
+                            <div class="benchmark-header">MetalNet (CIFAR Performance)</div>
+                            <img src="../benchmarks/metalnet_cifar.png" alt="MetalNet CIFAR Benchmark">
+                        </div>
+                        <div class="benchmark-item">
+                            <div class="benchmark-header">PyTorch (CIFAR Performance)</div>
+                            <img src="../benchmarks/pytorch_cifar.png" alt="PyTorch CIFAR Benchmark">
+                        </div>
+                    </div>
+
+                    <!-- 2X Convo Benchmark -->
+                    <div class="benchmark-row">
+                        <div class="benchmark-item">
+                            <div class="benchmark-header">MetalNet (2X Deep CNN)</div>
+                            <img src="../benchmarks/metalnet_2x_convo.png" alt="MetalNet 2X Convolution">
+                        </div>
+                        <div class="benchmark-item">
+                            <div class="benchmark-header">PyTorch (2X Deep CNN)</div>
+                            <img src="../benchmarks/pytorch_2x_convo.png" alt="PyTorch 2X Convolution">
+                        </div>
+                    </div>
+
+                    <!-- 4X Convo Benchmark -->
+                    <div class="benchmark-row">
+                        <div class="benchmark-item">
+                            <div class="benchmark-header">MetalNet (4X Extreme Wide CNN)</div>
+                            <img src="../benchmarks/metalnet_4x_convo.png" alt="MetalNet 4X Convolution">
+                        </div>
+                        <div class="benchmark-item">
+                            <div class="benchmark-header">PyTorch (4X Extreme Wide CNN)</div>
+                            <img src="../benchmarks/pytorch_4x_convo.png" alt="PyTorch 4X Convolution">
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+            
+        </div>
+    </main>
+
+</body>
+</html>
